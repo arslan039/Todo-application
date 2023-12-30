@@ -1,81 +1,77 @@
 const User = require("../models/user.js")
+const bcrypt = require("bcrypt");
+const sendCookie = require("../utils/features.js");
+const { response } = require("express");
+const errMiddleware = require("../middlewares/error.js");
 
-// logic for getting the users from the database
-const getAllUsers = async(req, res) => {
-    const users = await User.find({});
-    res.json({
-        success : true,
-        users,
-    });
-};
 
-// logic for entering or registering the user in the database
-const registerUsers =  async(req, res) => {
-    const {name , email , password} = req.body;
-    await User.create({
-        name ,
-        email ,
-        password 
-    });
-    res.status(201).cookie("template" , "apnatimeayega").json({
-        success : true,
-        message : "User created successfully"
-    })
+// logic for login the User in  the database
+
+const loginUser =  async(req, res) => {
+  try {
+    const {email , password} = req.body;
+  //  we did select password as we have done in schema the password select false, without doing it we can not pick the password 
+   const user = await User.findOne({email}).select("+password");
+   if(!user)  return next(new errMiddleware.ErrorHandler('Invalid Email or Password.', 404));
+  const isMatch = await bcrypt.compare(password , user.password);
+  if(!isMatch) return next(new errMiddleware.ErrorHandler('Invalid Email or Password.', 404));
+
+  sendCookie(user , res , `Welcome back ${user.name}` , 201);
+  } catch (error) {
+    next(error);
+  }
+ 
 }
 
- const specialFunc= async (req, res) => {
-   
-    res.json({
-      success : true,
-      message : "just trying to check."
-    })
-  };
+// logic for registering(SignUp) the user in the database
 
-  // logic for  getting data from params(Dynamic route),
-  const getUserDetails = async (req, res) => {
-    const {id} = req.params;
-    const user = await User.findById(id);
-    res.json({
-      success : true,
-      user
-    })
+const registerUser =  async(req, res) => {
+  try {
+    const {name , email , password} = req.body;
+    let user = await User.findOne({email});
+    if(user) return next(new errMiddleware.ErrorHandler('User Already Registered.', 404));
+     
+    const hashedPassword = await bcrypt.hash(password, 10);
+     user = await User.create({name , email, password : hashedPassword});
+   sendCookie(user , res , "Registered Successfully" , 201);
+  } catch (error) {
+    next(error);
+  }
+}
+
+  // logic for  getting data from params(Dynamic route), getting the user details by giving the user ID.
+
+  const getMyProfile = async (req, res) => {
+    try {
+      const id = "myid";
+   
+      res.status(200).json({
+       success : true,
+       user : req.user,
+      }) 
+    } catch (error) {
+      next(error);
+    }
+
   }; 
 
-  // logic for  updating  data from params(Dynamic route),
-  const updateUserDetails = async (req, res) => {
-    const { id } = req.params;
-    const { name, email, password } = req.body;
-  
+  // logic for logout user
+
+  const logoutUser = (req , res)=>{
     try {
-      const updatedUser = await User.findByIdAndUpdate(id, { name, email, password }, { new: true });
-  
-      if (!updatedUser) {
-        return res.status(404).json({ success: false, message: 'User not found' });
-      }
-  
-      res.json({ success: true, message: 'User updated successfully', user: updatedUser });
+      res
+      .status(200)
+      .cookie("token" , "" , {expires : new Date(Date.now()),
+        sameSite : process.env.NODE_ENV ==="Development" ? "lax" : "none",
+        secure : process.env.NODE_ENV ==="Development" ? false : true},
+      )
+      .json({
+       success : true,
+       user : req.user,
+      }) 
     } catch (error) {
-      console.error(error);
-      res.status(500).json({ success: false, message: 'Internal server error' });
-    }
-  };
-  
-  // logic for  deleting data from params(Dynamic route),
-  const deleteUserDetails = async (req, res) => {
-    const { id } = req.params;
-  
-    try {
-      const user = await User.findById(id);
-      if (!user) {
-        return res.status(404).json({ success: false, message: 'User not found' });
-      }
-  
-      await User.deleteOne({ _id: id });
-      return res.json({ success: true, message: 'User deleted successfully' });
-    } catch (error) {
-      console.error(error);
-      return res.status(500).json({ success: false, message: 'Internal server error' });
-    }
-  };
-  
-module.exports = { getAllUsers, registerUsers, specialFunc, getUserDetails, deleteUserDetails,updateUserDetails};
+      next(error);
+    } 
+  }
+ 
+module.exports = {registerUser,loginUser , getMyProfile, logoutUser};

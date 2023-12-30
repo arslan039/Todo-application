@@ -1,14 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const UserController  = require("../controllers/user.js");
+const isAuthenticated = require("../middlewares/Auth.js")
 
 
-router.get("/users/all", UserController.getAllUsers);
-router.post("/users/new", UserController.registerUsers);
-router.get("/userId/special" , UserController.specialFunc);
+router.post("/new", UserController.registerUser);
+router.get("/login" , UserController.loginUser);
+router.get("/logout" , UserController.logoutUser);
 // Endpoint for  getting data from params(Dynamic route), always keep the dynamic route at the end of the code .
-router.get("/userId/:id" , UserController.getUserDetails);
-router.put("/userId/:id" , UserController.updateUserDetails);
-router.delete("/userId/:id" , UserController.deleteUserDetails);
+router.get("/me" , isAuthenticated, UserController.getMyProfile);
 
   module.exports = router;
